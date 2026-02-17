@@ -14,6 +14,46 @@ const REQUIRED_DAYS = 3;
 const LEVEL_UP_ACCURACY = 80;
 const LEVEL_DOWN_ACCURACY = 50;
 
+// 날짜가 연속인지 확인하는 헬퍼 함수
+function areConsecutiveDays(dates: string[]): boolean {
+  if (dates.length < 2) return true;
+  
+  const sorted = [...dates].sort();
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1]);
+    const curr = new Date(sorted[i]);
+    const diffDays = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays !== 1) return false;
+  }
+  return true;
+}
+
+// 최근 N일 연속 조건을 만족하는지 확인
+function checkConsecutiveCondition(
+  dailyStats: { date: string; accuracy: number }[],
+  threshold: number,
+  isAbove: boolean,
+  requiredDays: number
+): boolean {
+  if (dailyStats.length < requiredDays) return false;
+  
+  // 날짜순 정렬 (최신순)
+  const sorted = [...dailyStats].sort((a, b) => b.date.localeCompare(a.date));
+  
+  // 최근 requiredDays개 확인
+  const recent = sorted.slice(0, requiredDays);
+  
+  // 모두 조건 만족하는지 확인
+  const allMeetCondition = recent.every((d) =>
+    isAbove ? d.accuracy >= threshold : d.accuracy <= threshold
+  );
+  
+  if (!allMeetCondition) return false;
+  
+  // 연속 날짜인지 확인
+  return areConsecutiveDays(recent.map((d) => d.date));
+}
+
 export function evaluateLevelChange(
   currentLevel: number,
   dailyStats: { date: string; accuracy: number }[],
@@ -35,13 +75,13 @@ export function evaluateLevelChange(
     }
   }
 
-  const highDays = dailyStats.filter((d) => d.accuracy >= LEVEL_UP_ACCURACY).length;
-  const lowDays = dailyStats.filter((d) => d.accuracy <= LEVEL_DOWN_ACCURACY).length;
-
-  if (highDays >= REQUIRED_DAYS && currentLevel < 10) {
+  // 연속 3일 80% 이상이면 레벨업
+  if (checkConsecutiveCondition(dailyStats, LEVEL_UP_ACCURACY, true, REQUIRED_DAYS) && currentLevel < 10) {
     return { shouldChange: true, newLevel: currentLevel + 1, direction: "up" };
   }
-  if (lowDays >= REQUIRED_DAYS && currentLevel > 1) {
+  
+  // 연속 3일 50% 이하면 레벨다운
+  if (checkConsecutiveCondition(dailyStats, LEVEL_DOWN_ACCURACY, false, REQUIRED_DAYS) && currentLevel > 1) {
     return { shouldChange: true, newLevel: currentLevel - 1, direction: "down" };
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,7 +47,7 @@ export default function Game() {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [streak, setStreak] = useState(0);
   const [showLevelChange, setShowLevelChange] = useState<"up" | "down" | null>(null);
-  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  const [extraProblemsAfterLimit, setExtraProblemsAfterLimit] = useState(0);
 
   const { data: stats, isLoading } = useQuery<PlayerStats>({
     queryKey: ["/api/players", playerId, "stats"],
@@ -99,13 +99,12 @@ export default function Game() {
     }
   }, [problem, feedback]);
 
-  // Check daily limit on load
-  if (player && stats && !dailyLimitReached && player.dailyLimit > 0) {
-    const todayTotal = stats.todayStats.totalAttempted + sessionTotal;
-    if (todayTotal >= player.dailyLimit) {
-      setDailyLimitReached(true);
-    }
-  }
+  // Check daily limit (computed, not stateful)
+  const dailyLimitReached = useMemo(() => {
+    if (!player || !stats || player.dailyLimit === 0) return false;
+    const todayTotal = stats.todayStats.totalAttempted + extraProblemsAfterLimit;
+    return todayTotal >= player.dailyLimit;
+  }, [player, stats, extraProblemsAfterLimit]);
 
   const handleSubmit = useCallback(() => {
     if (!problem || !player || feedback) return;
@@ -126,12 +125,9 @@ export default function Game() {
       setStreak(0);
     }
 
-    // Check if daily limit will be reached after this problem
+    // Track extra problems for daily limit calculation
     if (player.dailyLimit > 0) {
-      const totalAfter = (stats?.todayStats.totalAttempted ?? 0) + sessionTotal + 1;
-      if (totalAfter >= player.dailyLimit) {
-        setDailyLimitReached(true);
-      }
+      setExtraProblemsAfterLimit((prev) => prev + 1);
     }
 
     submitMutation.mutate({

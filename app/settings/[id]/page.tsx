@@ -9,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PlayerStats } from "@/db/schema";
 import { motion } from "framer-motion";
-import { ArrowLeft, Settings } from "lucide-react";
+import { ArrowLeft, Settings, Zap } from "lucide-react";
 
 const DAILY_LIMIT_OPTIONS = [
   { value: 10, label: "10문제" },
@@ -17,6 +17,8 @@ const DAILY_LIMIT_OPTIONS = [
   { value: 30, label: "30문제" },
   { value: 0, label: "무제한" },
 ];
+
+const LEVEL_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function SettingsPage() {
   const params = useParams<{ id: string }>();
@@ -49,6 +51,25 @@ export default function SettingsPage() {
       });
       toast({
         title: "설정이 저장되었습니다",
+      });
+    },
+  });
+
+  const levelMutation = useMutation({
+    mutationFn: async (level: number) => {
+      const res = await apiRequest(
+        "PUT",
+        `/api/players/${playerId}/level`,
+        { level }
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/players", playerId, "stats"],
+      });
+      toast({
+        title: "레벨이 변경되었습니다",
       });
     },
   });
@@ -90,6 +111,39 @@ export default function SettingsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+        >
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                레벨 설정
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-5">
+              <p className="text-sm text-muted-foreground mb-4">
+                현재 레벨: <span className="font-bold text-primary">Lv.{player.level}</span>
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {LEVEL_OPTIONS.map((level) => (
+                  <Button
+                    key={level}
+                    variant={player.level === level ? "default" : "outline"}
+                    className="h-10 text-sm font-semibold"
+                    onClick={() => levelMutation.mutate(level)}
+                    disabled={levelMutation.isPending}
+                  >
+                    {level}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
         >
           <Card>
             <CardHeader className="pb-3">
