@@ -257,34 +257,45 @@ export default function BingoGame() {
         {phase === "playing" ? (
           <>
             {/* Bingo Board */}
-            <div
-              className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg"
-              style={{
-                backgroundImage: `url(${animalImageUrl})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
+            <div className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-900">
               {/* Grid overlay */}
               <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 gap-1 p-1">
-                {boardState.map((state, index) => (
-                  <motion.button
-                    key={index}
-                    onClick={() => handleCellClick(index)}
-                    disabled={state === "unlocked" || selectedCell !== null}
-                    className={`
-                      relative rounded-md border-2 transition-all
-                      ${state === "locked" ? "bg-gray-900/95 backdrop-blur-lg border-gray-600 hover:bg-gray-800/95" : "bg-transparent border-green-400"}
-                      ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50" : ""}
-                      disabled:cursor-not-allowed
-                    `}
-                    whileHover={state === "locked" && selectedCell === null ? { scale: 1.05 } : {}}
-                    whileTap={state === "locked" && selectedCell === null ? { scale: 0.95 } : {}}
-                  >
-                    {state === "locked" && <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto" />}
-                    {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-400 absolute inset-0 m-auto drop-shadow-lg" />}
-                  </motion.button>
-                ))}
+                {boardState.map((state, index) => {
+                  const row = Math.floor(index / 5);
+                  const col = index % 5;
+                  return (
+                    <motion.button
+                      key={index}
+                      onClick={() => handleCellClick(index)}
+                      disabled={state === "unlocked" || selectedCell !== null}
+                      className={`
+                        relative rounded-md border-2 transition-all overflow-hidden
+                        ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50" : ""}
+                        ${state === "locked" ? "border-gray-600 hover:border-gray-500" : "border-green-400"}
+                        disabled:cursor-not-allowed
+                      `}
+                      style={
+                        state === "unlocked" && animalImageUrl
+                          ? {
+                              backgroundImage: `url(${animalImageUrl})`,
+                              backgroundSize: "500%",
+                              backgroundPosition: `${col * 25}% ${row * 25}%`,
+                            }
+                          : {}
+                      }
+                      whileHover={state === "locked" && selectedCell === null ? { scale: 1.05 } : {}}
+                      whileTap={state === "locked" && selectedCell === null ? { scale: 0.95 } : {}}
+                    >
+                      {state === "locked" && (
+                        <>
+                          <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-md" />
+                          <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto z-10" />
+                        </>
+                      )}
+                      {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-400 absolute top-1 right-1 drop-shadow-lg z-10" />}
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
 
