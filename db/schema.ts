@@ -11,6 +11,7 @@ export const players = pgTable("players", {
   totalCorrect: integer("total_correct").notNull().default(0),
   totalAttempted: integer("total_attempted").notNull().default(0),
   dailyLimit: integer("daily_limit").notNull().default(0),
+  operators: text("operators").notNull().default('["add","subtract","multiply","divide"]'),
   lastLevelChangeAt: timestamp("last_level_change_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -82,6 +83,7 @@ export const insertReviewAttemptSchema = createInsertSchema(reviewAttempts).omit
 
 export const updatePlayerSettingsSchema = z.object({
   dailyLimit: z.union([z.literal(0), z.literal(10), z.literal(20), z.literal(30)]),
+  operators: z.array(z.enum(["add", "subtract", "multiply", "divide"])).optional(),
 });
 
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
@@ -93,6 +95,7 @@ export type ReviewAttempt = typeof reviewAttempts.$inferSelect;
 export type UpdatePlayerSettings = z.infer<typeof updatePlayerSettingsSchema>;
 
 export type OperatorType = "+" | "-" | "×" | "÷";
+export type OperatorKey = "add" | "subtract" | "multiply" | "divide";
 
 export interface MathProblem {
   operand1: number;

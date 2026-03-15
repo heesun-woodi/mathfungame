@@ -9,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PlayerStats } from "@/db/schema";
 import { motion } from "framer-motion";
-import { ArrowLeft, Settings, Zap } from "lucide-react";
+import { ArrowLeft, Settings, Zap, Plus, X, Check } from "lucide-react";
 
 const DAILY_LIMIT_OPTIONS = [
   { value: 10, label: "10문제" },
@@ -19,6 +19,15 @@ const DAILY_LIMIT_OPTIONS = [
 ];
 
 const LEVEL_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+type OperatorKey = "add" | "subtract" | "multiply" | "divide";
+
+const OPERATOR_OPTIONS: { key: OperatorKey; label: string; symbol: string }[] = [
+  { key: "add", label: "덧셈", symbol: "+" },
+  { key: "subtract", label: "뺄셈", symbol: "-" },
+  { key: "multiply", label: "곱셈", symbol: "×" },
+  { key: "divide", label: "나눗셈", symbol: "÷" },
+];
 
 export default function SettingsPage() {
   const params = useParams<{ id: string }>();
@@ -33,8 +42,23 @@ export default function SettingsPage() {
   const player = stats?.player;
 
   const [selectedLimit, setSelectedLimit] = useState<number | null>(null);
+  const [selectedOperators, setSelectedOperators] = useState<OperatorKey[]>([]);
 
   const currentLimit = selectedLimit ?? player?.dailyLimit ?? 0;
+
+  // Parse operators from player
+  const currentOperators = (() => {
+    if (selectedOperators.length > 0) return selectedOperators;
+    if (!player?.operators) return ["add", "subtract", "multiply", "divide"];
+    try {
+      const parsed = JSON.parse(player.operators);
+      return Array.isArray(parsed) && parsed.length > 0 
+        ? parsed 
+        : ["add", "subtract", "multiply", "divide"];
+    } catch {
+      return ["add", "subtract", "multiply", "divide"];
+    }
+  })();
 
   const saveMutation = useMutation({
     mutationFn: async (dailyLimit: number) => {
@@ -74,9 +98,46 @@ export default function SettingsPage() {
     },
   });
 
+  const operatorsMutation = useMutation({
+    mutationFn: async (operators: OperatorKey[]) => {
+      const res = await apiRequest(
+        "PATCH",
+        `/api/players/${playerId}`,
+        { operators: JSON.stringify(operators) }
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/players", playerId, "stats"],
+      });
+      toast({
+        title: "연산자 설정이 저장되었습니다",
+      });
+    },
+  });
+
   const handleSelect = (value: number) => {
     setSelectedLimit(value);
     saveMutation.mutate(value);
+  };
+
+  const handleOperatorToggle = (op: OperatorKey) => {
+    const newOperators = currentOperators.includes(op)
+      ? currentOperators.filter(o => o !== op)
+      : [...currentOperators, op];
+    
+    // At least one operator must be selected
+    if (newOperators.length === 0) {
+      toast({
+        title: "최소 1개의 연산자를 선택해야 합니다",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSelectedOperators(newOperators);
+    operatorsMutation.mutate(newOperators);
   };
 
   if (isLoading || !player) {
@@ -144,6 +205,47 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
+        >
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plus className="w-5 h-5 text-primary" />
+                연습할 연산 선택
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-5">
+              <p className="text-sm text-muted-foreground mb-4">
+                연습하고 싶은 연산을 선택하세요. (최소 1개)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {OPERATOR_OPTIONS.map((option) => {
+                  const isSelected = currentOperators.includes(option.key);
+                  return (
+                    <Button
+                      key={option.key}
+                      variant={isSelected ? "default" : "outline"}
+                      className="h-12 text-base font-semibold flex items-center gap-2"
+                      onClick={() => handleOperatorToggle(option.key)}
+                      disabled={operatorsMutation.isPending}
+                    >
+                      {isSelected ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      {option.label} ({option.symbol})
+                    </Button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
         >
           <Card>
             <CardHeader className="pb-3">

@@ -32,6 +32,17 @@ export async function PATCH(
       return NextResponse.json({ message: "Invalid player ID" }, { status: 400 });
     }
     const body = await request.json();
+    
+    // Handle operators update
+    if (body.operators !== undefined) {
+      const player = await storage.updatePlayerOperators(id, body.operators);
+      if (!player) {
+        return NextResponse.json({ message: "Player not found" }, { status: 404 });
+      }
+      return NextResponse.json(player);
+    }
+    
+    // Handle name update
     if (!body.name || typeof body.name !== "string" || body.name.trim().length === 0) {
       return NextResponse.json({ message: "Name is required and must be a non-empty string" }, { status: 400 });
     }

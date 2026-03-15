@@ -79,7 +79,16 @@ export default function Game() {
 
   const generateNewProblem = useCallback(() => {
     if (player) {
-      setProblem(generateProblem(player.level));
+      let operatorKeys: ("add" | "subtract" | "multiply" | "divide")[] | undefined;
+      try {
+        const parsed = JSON.parse(player.operators || '[]');
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          operatorKeys = parsed as ("add" | "subtract" | "multiply" | "divide")[];
+        }
+      } catch {
+        // Use default (all operators)
+      }
+      setProblem(generateProblem(player.level, operatorKeys));
       setUserInput("");
       setFeedback(null);
     }
@@ -133,7 +142,7 @@ export default function Game() {
       isCorrect,
       level: player.level,
     });
-  }, [problem, player, feedback, userInput, submitMutation, stats, sessionTotal]);
+  }, [problem, player, feedback, userInput, submitMutation]);
 
   if (isLoading || !player || !problem) {
     return (
@@ -268,20 +277,56 @@ export default function Game() {
                 <p className="text-muted-foreground">
                   오늘 {player.dailyLimit}문제를 모두 풀었습니다.
                 </p>
-                <div className="flex gap-3 mt-4">
+                <div className="flex flex-col gap-3 mt-6">
+                  <Button
+                    className="w-full h-12 text-base font-semibold"
+                    onClick={() => {
+                      generateNewProblem();
+                    }}
+                  >
+                    <Zap className="w-5 h-5 mr-2" />
+                    계속 더 풀기
+                  </Button>
                   <Button
                     variant="outline"
-                    className="flex-1"
-                    onClick={() => router.push("/")}
+                    className="w-full h-12 text-base font-semibold"
+                    onClick={async () => {
+                      if (player.level >= 10) {
+                        alert("이미 최대 레벨입니다!");
+                        return;
+                      }
+                      try {
+                        await apiRequest("PUT", `/api/players/${player.id}/level`, {
+                          level: player.level + 1,
+                        });
+                        queryClient.invalidateQueries({
+                          queryKey: ["/api/players", playerId, "stats"],
+                        });
+                        generateNewProblem();
+                      } catch (error) {
+                        console.error("Failed to increase level:", error);
+                      }
+                    }}
                   >
-                    홈으로
+                    <ChevronUp className="w-5 h-5 mr-2" />
+                    레벨 올리기 (Lv.{Math.min(player.level + 1, 10)})
                   </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => router.push(`/dashboard/${player.id}`)}
-                  >
-                    학습 현황 보기
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => router.push("/")}
+                    >
+                      홈으로
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => router.push(`/dashboard/${player.id}`)}
+                    >
+                      학습 현황 보기
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

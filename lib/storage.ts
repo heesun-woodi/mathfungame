@@ -108,6 +108,15 @@ export class DatabaseStorage {
     return player || undefined;
   }
 
+  async updatePlayerOperators(id: number, operators: string): Promise<Player | undefined> {
+    const [player] = await getDb()
+      .update(players)
+      .set({ operators })
+      .where(eq(players.id, id))
+      .returning();
+    return player || undefined;
+  }
+
   async deletePlayer(id: number): Promise<boolean> {
     await getDb().delete(reviewAttempts).where(eq(reviewAttempts.playerId, id));
     await getDb().delete(attempts).where(eq(attempts.playerId, id));

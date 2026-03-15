@@ -1,4 +1,4 @@
-import type { MathProblem, OperatorType } from "@/db/schema";
+import type { MathProblem, OperatorType, OperatorKey } from "@/db/schema";
 
 interface LevelConfig {
   operators: OperatorType[];
@@ -24,10 +24,29 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function generateProblem(level: number): MathProblem {
+const OPERATOR_KEY_MAP: Record<OperatorKey, OperatorType> = {
+  add: "+",
+  subtract: "-",
+  multiply: "×",
+  divide: "÷",
+};
+
+export function generateProblem(level: number, allowedOperatorKeys?: OperatorKey[]): MathProblem {
   const clampedLevel = Math.max(1, Math.min(10, level));
   const config = LEVEL_CONFIGS[clampedLevel];
-  const operator = config.operators[randomInt(0, config.operators.length - 1)];
+  
+  // Filter operators based on allowed keys
+  let availableOperators = config.operators;
+  if (allowedOperatorKeys && allowedOperatorKeys.length > 0) {
+    const allowedOperators = allowedOperatorKeys.map(key => OPERATOR_KEY_MAP[key]);
+    availableOperators = config.operators.filter(op => allowedOperators.includes(op));
+    // If no overlap, fallback to config operators
+    if (availableOperators.length === 0) {
+      availableOperators = config.operators;
+    }
+  }
+  
+  const operator = availableOperators[randomInt(0, availableOperators.length - 1)];
 
   let operand1: number;
   let operand2: number;
