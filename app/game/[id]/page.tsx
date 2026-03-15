@@ -184,8 +184,7 @@ export default function BingoGame() {
         queryClient.invalidateQueries({ queryKey: ["/api/players", playerId, "stats"] });
       } else {
         setGuessFeedback("틀렸어요. 힌트를 확인해보세요!");
-        // Auto-clear feedback after 2s
-        setTimeout(() => setGuessFeedback(""), 2000);
+        // Feedback stays until user types again
       }
     } catch (error) {
       console.error("Failed to submit guess:", error);
@@ -315,13 +314,36 @@ export default function BingoGame() {
             {/* Animal Guess Card - Always visible during playing */}
             <Card className="w-full border-2 border-primary/20">
               <CardContent className="p-4">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">💡 동물 맞추기 (빠른 승리!)</p>
+                  
+                  {/* Feedback Alert - More Prominent */}
+                  <AnimatePresence>
+                    {guessFeedback && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={`p-3 rounded-lg border-2 text-center font-bold ${
+                          guessFeedback.includes("정답")
+                            ? "bg-green-500/10 border-green-500 text-green-700"
+                            : "bg-red-500/10 border-red-500 text-red-700"
+                        }`}
+                      >
+                        {guessFeedback}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
                   <div className="flex gap-2">
                     <Input
                       type="text"
                       value={animalGuess}
-                      onChange={(e) => setAnimalGuess(e.target.value)}
+                      onChange={(e) => {
+                        setAnimalGuess(e.target.value);
+                        // Clear feedback when typing
+                        if (guessFeedback) setGuessFeedback("");
+                      }}
                       onKeyDown={(e) => e.key === "Enter" && animalGuess && handleGuessSubmit()}
                       placeholder="동물 이름 입력 (예: 사자)"
                       className="flex-1"
@@ -335,17 +357,6 @@ export default function BingoGame() {
                       제출
                     </Button>
                   </div>
-                  {guessFeedback && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`text-sm font-medium ${
-                        guessFeedback.includes("정답") ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {guessFeedback}
-                    </motion.p>
-                  )}
                 </div>
               </CardContent>
             </Card>
