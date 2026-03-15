@@ -266,7 +266,7 @@ export default function BingoGame() {
               }}
             >
               {/* Grid overlay */}
-              <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 gap-1 p-1 bg-black/40">
+              <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 gap-1 p-1">
                 {boardState.map((state, index) => (
                   <motion.button
                     key={index}
@@ -274,7 +274,7 @@ export default function BingoGame() {
                     disabled={state === "unlocked" || selectedCell !== null}
                     className={`
                       relative rounded-md border-2 transition-all
-                      ${state === "locked" ? "bg-gray-800/90 backdrop-blur-md border-gray-600 hover:bg-gray-700/90" : "bg-transparent border-green-500"}
+                      ${state === "locked" ? "bg-gray-900/95 backdrop-blur-lg border-gray-600 hover:bg-gray-800/95" : "bg-transparent border-green-400"}
                       ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50" : ""}
                       disabled:cursor-not-allowed
                     `}
@@ -282,7 +282,7 @@ export default function BingoGame() {
                     whileTap={state === "locked" && selectedCell === null ? { scale: 0.95 } : {}}
                   >
                     {state === "locked" && <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto" />}
-                    {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-500 absolute inset-0 m-auto" />}
+                    {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-400 absolute inset-0 m-auto drop-shadow-lg" />}
                   </motion.button>
                 ))}
               </div>
