@@ -12,9 +12,9 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Settings, Zap, Plus, X, Check } from "lucide-react";
 
 const DAILY_LIMIT_OPTIONS = [
-  { value: 10, label: "10문제" },
-  { value: 20, label: "20문제" },
-  { value: 30, label: "30문제" },
+  { value: 1, label: "1빙고" },
+  { value: 2, label: "2빙고" },
+  { value: 3, label: "3빙고" },
   { value: 0, label: "무제한" },
 ];
 
@@ -251,12 +251,12 @@ export default function SettingsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" />
-                일일 문제 수 설정
+                일일 빙고 수 설정
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-5">
               <p className="text-sm text-muted-foreground mb-4">
-                하루에 풀 문제 수를 설정하세요.
+                하루에 완료할 빙고 수를 설정하세요.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 {DAILY_LIMIT_OPTIONS.map((option) => (

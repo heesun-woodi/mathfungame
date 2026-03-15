@@ -1,52 +1,56 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import {
-  generateProblem,
-  getLevelDescription,
-  getRandomEncouragement,
-} from "@/lib/mathEngine";
-import type { MathProblem, PlayerStats } from "@/db/schema";
+import { generateProblem } from "@/lib/mathEngine";
+import { getAnimalHint } from "@/lib/bingoEngine";
+import type { MathProblem, PlayerStats, CellState } from "@/db/schema";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Star,
   ArrowLeft,
   BarChart3,
-  Trophy,
-  Zap,
-  Target,
-  ChevronUp,
-  ChevronDown,
   Settings,
-  BookOpen,
+  Sparkles,
+  CheckCircle2,
+  Lock,
+  Lightbulb,
+  Trophy,
+  ChevronUp,
+  Zap,
 } from "lucide-react";
 
-type FeedbackState = {
-  isCorrect: boolean;
-  message: string;
-  correctAnswer: number;
-} | null;
+type GamePhase = "playing" | "guessing";
 
-export default function Game() {
+export default function BingoGame() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const playerId = parseInt(params.id || "0");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Session state
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [boardState, setBoardState] = useState<CellState[]>(Array(25).fill("locked"));
+  const [animalImageUrl, setAnimalImageUrl] = useState<string>("");
+  const [completedLines, setCompletedLines] = useState(0);
+  const [phase, setPhase] = useState<GamePhase>("playing");
+
+  // Problem state
+  const [selectedCell, setSelectedCell] = useState<number | null>(null);
   const [problem, setProblem] = useState<MathProblem | null>(null);
   const [userInput, setUserInput] = useState("");
-  const [feedback, setFeedback] = useState<FeedbackState>(null);
-  const [sessionCorrect, setSessionCorrect] = useState(0);
-  const [sessionTotal, setSessionTotal] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [showLevelChange, setShowLevelChange] = useState<"up" | "down" | null>(null);
+  const [feedback, setFeedback] = useState<{ isCorrect: boolean; message: string } | null>(null);
+
+  // Guessing state
+  const [animalGuess, setAnimalGuess] = useState("");
+  const [hintLevel, setHintLevel] = useState(0);
+  const [hintText, setHintText] = useState("");
+  const [guessFeedback, setGuessFeedback] = useState<string | null>(null);
 
   const { data: stats, isLoading } = useQuery<PlayerStats>({
     queryKey: ["/api/players", playerId, "stats"],
@@ -54,97 +58,148 @@ export default function Game() {
 
   const player = stats?.player;
 
-  const submitMutation = useMutation({
-    mutationFn: async (data: {
-      playerId: number;
-      operand1: number;
-      operand2: number;
-      operator: string;
-      correctAnswer: number;
-      userAnswer: number;
-      isCorrect: boolean;
-      level: number;
-    }) => {
-      const res = await apiRequest("POST", "/api/attempts", data);
-      return res.json();
-    },
-    onSuccess: (result: { levelChanged: boolean; newLevel: number; direction: string }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/players", playerId, "stats"] });
-      if (result.levelChanged) {
-        setShowLevelChange(result.direction as "up" | "down");
-        setTimeout(() => setShowLevelChange(null), 2500);
-      }
-    },
-  });
+  // Start new bingo session
+  const startSession = useCallback(async () => {
+    if (!player) return;
 
-  const generateNewProblem = useCallback(() => {
-    if (player) {
-      let operatorKeys: ("add" | "subtract" | "multiply" | "divide")[] | undefined;
-      try {
-        const parsed = JSON.parse(player.operators || '[]');
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          operatorKeys = parsed as ("add" | "subtract" | "multiply" | "divide")[];
-        }
-      } catch {
-        // Use default (all operators)
-      }
-      setProblem(generateProblem(player.level, operatorKeys));
-      setUserInput("");
-      setFeedback(null);
+    try {
+      const response = await apiRequest("POST", "/api/bingo/start", {
+        playerId: player.id,
+        level: player.level,
+      });
+      const data = await response.json();
+
+      setSessionId(data.sessionId);
+      setBoardState(data.boardState);
+      setAnimalImageUrl(data.animalImageUrl);
+      setCompletedLines(0);
+      setPhase("playing");
+      setSelectedCell(null);
+      setProblem(null);
+      setHintLevel(0);
+      setHintText("");
+    } catch (error) {
+      console.error("Failed to start bingo session:", error);
     }
   }, [player]);
 
-  // Initialize problem when player data is available
-  const needsProblem = player && !problem;
-  if (needsProblem) {
-    generateNewProblem();
-  }
-
-  // Auto-focus input when a new problem appears
+  // Initialize session
   useEffect(() => {
-    if (problem && !feedback) {
-      inputRef.current?.focus();
+    if (player && !sessionId) {
+      startSession();
     }
-  }, [problem, feedback]);
+  }, [player, sessionId, startSession]);
 
-  // Check daily limit (computed, not stateful)
-  const dailyLimitReached = useMemo(() => {
-    if (!player || !stats || player.dailyLimit === 0) return false;
-    return stats.todayStats.totalAttempted >= player.dailyLimit;
-  }, [player, stats]);
+  // Select cell and generate problem
+  const handleCellClick = useCallback(
+    (index: number) => {
+      if (boardState[index] === "unlocked" || selectedCell !== null || phase !== "playing") return;
 
-  const handleSubmit = useCallback(() => {
-    if (!problem || !player || feedback) return;
+      setSelectedCell(index);
+      setFeedback(null);
+
+      if (player) {
+        let operatorKeys: ("add" | "subtract" | "multiply" | "divide")[] | undefined;
+        try {
+          const parsed = JSON.parse(player.operators || "[]");
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            operatorKeys = parsed as ("add" | "subtract" | "multiply" | "divide")[];
+          }
+        } catch {
+          // Use default
+        }
+        setProblem(generateProblem(player.level, operatorKeys));
+        setUserInput("");
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    },
+    [boardState, selectedCell, phase, player]
+  );
+
+  // Submit answer
+  const handleSubmit = useCallback(async () => {
+    if (!problem || !sessionId || selectedCell === null) return;
+
     const answer = parseInt(userInput);
     if (isNaN(answer)) return;
 
-    const isCorrect = answer === problem.correctAnswer;
-    setFeedback({
-      isCorrect,
-      message: getRandomEncouragement(isCorrect),
-      correctAnswer: problem.correctAnswer,
-    });
-    setSessionTotal((prev) => prev + 1);
-    if (isCorrect) {
-      setSessionCorrect((prev) => prev + 1);
-      setStreak((prev) => prev + 1);
-    } else {
-      setStreak(0);
+    try {
+      const response = await apiRequest("POST", `/api/bingo/${sessionId}/attempt`, {
+        cellIndex: selectedCell,
+        operand1: problem.operand1,
+        operand2: problem.operand2,
+        operator: problem.operator,
+        correctAnswer: problem.correctAnswer,
+        userAnswer: answer,
+      });
+      const data = await response.json();
+
+      setFeedback({
+        isCorrect: data.isCorrect,
+        message: data.isCorrect ? "정답입니다! 🎉" : "틀렸어요. 다시 시도해보세요!",
+      });
+
+      if (data.isCorrect) {
+        setBoardState(data.boardState);
+        setCompletedLines(data.completedLines);
+
+        if (data.isCompleted) {
+          setTimeout(() => {
+            setPhase("guessing");
+            setSelectedCell(null);
+            setProblem(null);
+          }, 1500);
+        } else {
+          setTimeout(() => {
+            setSelectedCell(null);
+            setProblem(null);
+            setFeedback(null);
+          }, 1500);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to submit attempt:", error);
     }
+  }, [problem, sessionId, selectedCell, userInput]);
 
-    submitMutation.mutate({
-      playerId: player.id,
-      operand1: problem.operand1,
-      operand2: problem.operand2,
-      operator: problem.operator,
-      correctAnswer: problem.correctAnswer,
-      userAnswer: answer,
-      isCorrect,
-      level: player.level,
-    });
-  }, [problem, player, feedback, userInput, submitMutation]);
+  // Submit animal guess
+  const handleAnimalGuess = useCallback(async () => {
+    if (!sessionId || !animalGuess.trim()) return;
 
-  if (isLoading || !player || !problem) {
+    try {
+      const response = await apiRequest("POST", `/api/bingo/${sessionId}/guess`, {
+        animalGuess: animalGuess.trim(),
+      });
+      const data = await response.json();
+
+      if (data.isCorrect) {
+        setGuessFeedback("정답입니다! 🎉");
+        queryClient.invalidateQueries({ queryKey: ["/api/players", playerId, "stats"] });
+      } else {
+        setGuessFeedback("틀렸어요. 힌트를 확인해보세요!");
+      }
+    } catch (error) {
+      console.error("Failed to submit guess:", error);
+    }
+  }, [sessionId, animalGuess, playerId]);
+
+  // Show hint
+  const handleShowHint = useCallback(async () => {
+    if (!sessionId || hintLevel >= 3) return;
+
+    try {
+      const response = await apiRequest("GET", `/api/bingo/${sessionId}`, {});
+      const data = await response.json();
+      const nextHintLevel = hintLevel + 1;
+      const hint = getAnimalHint(data.animalName, nextHintLevel);
+      setHintText(hint);
+      setHintLevel(nextHintLevel);
+    } catch (error) {
+      console.error("Failed to get hint:", error);
+    }
+  }, [sessionId, hintLevel]);
+
+  if (isLoading || !player) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <motion.div
@@ -157,30 +212,15 @@ export default function Game() {
     );
   }
 
-  const sessionAccuracy = sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0;
-
-  const getOperatorColor = (op: string) => {
-    switch (op) {
-      case "+": return "text-chart-4";
-      case "-": return "text-chart-1";
-      case "×": return "text-chart-3";
-      case "÷": return "text-chart-2";
-      default: return "text-primary";
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
       <header className="flex items-center justify-between gap-3 p-3 border-b bg-card/50">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push("/")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
 
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
               {player.name[0]}
@@ -193,284 +233,225 @@ export default function Game() {
             <span className="font-bold text-sm text-primary">Lv.{player.level}</span>
           </div>
 
-          {streak >= 3 && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="flex items-center gap-1 bg-chart-3/15 px-3 py-1 rounded-md"
-            >
-              <span className="font-bold text-sm text-chart-3">{streak} 연속!</span>
-            </motion.div>
+          {completedLines > 0 && (
+            <div className="flex items-center gap-1 bg-chart-3/15 px-3 py-1 rounded-md">
+              <Sparkles className="w-4 h-4 text-chart-3" />
+              <span className="font-bold text-sm text-chart-3">{completedLines}줄</span>
+            </div>
           )}
         </div>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/review/${player.id}`)}
-          >
-            <BookOpen className="w-5 h-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/settings/${player.id}`)}
-          >
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/settings/${player.id}`)}>
             <Settings className="w-5 h-5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/dashboard/${player.id}`)}
-          >
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/${player.id}`)}>
             <BarChart3 className="w-5 h-5" />
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6 max-w-lg mx-auto w-full">
-        <AnimatePresence>
-          {showLevelChange && (
-            <motion.div
-              initial={{ opacity: 0, y: -30, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -30, scale: 0.8 }}
-              className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-md font-bold text-lg ${
-                showLevelChange === "up"
-                  ? "bg-chart-4/15 text-chart-4 border border-chart-4/30"
-                  : "bg-chart-3/15 text-chart-3 border border-chart-3/30"
-              }`}
+      {/* Main content */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6 max-w-2xl mx-auto w-full">
+        {phase === "playing" ? (
+          <>
+            {/* Bingo Board */}
+            <div
+              className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg"
+              style={{
+                backgroundImage: `url(${animalImageUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
             >
-              <div className="flex items-center gap-2">
-                {showLevelChange === "up" ? (
-                  <>
-                    <ChevronUp className="w-6 h-6" />
-                    레벨 업!
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-6 h-6" />
-                    레벨 다운
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="text-center mb-2">
-          <p className="text-sm text-muted-foreground">
-            {getLevelDescription(player.level)}
-          </p>
-        </div>
-
-        {dailyLimitReached && feedback ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
-            <Card className="w-full">
-              <CardContent className="p-8 text-center space-y-4">
-                <Trophy className="w-16 h-16 mx-auto text-chart-3" />
-                <h2 className="text-2xl font-bold">오늘 목표를 달성했어요!</h2>
-                <p className="text-muted-foreground">
-                  오늘 {player.dailyLimit}문제를 모두 풀었습니다.
-                </p>
-                <div className="flex flex-col gap-3 mt-6">
-                  <Button
-                    className="w-full h-12 text-base font-semibold"
-                    onClick={() => {
-                      generateNewProblem();
-                    }}
+              {/* Grid overlay */}
+              <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 gap-1 p-1 bg-black/40">
+                {boardState.map((state, index) => (
+                  <motion.button
+                    key={index}
+                    onClick={() => handleCellClick(index)}
+                    disabled={state === "unlocked" || selectedCell !== null}
+                    className={`
+                      relative rounded-md border-2 transition-all
+                      ${state === "locked" ? "bg-gray-800/90 backdrop-blur-md border-gray-600 hover:bg-gray-700/90" : "bg-transparent border-green-500"}
+                      ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50" : ""}
+                      disabled:cursor-not-allowed
+                    `}
+                    whileHover={state === "locked" && selectedCell === null ? { scale: 1.05 } : {}}
+                    whileTap={state === "locked" && selectedCell === null ? { scale: 0.95 } : {}}
                   >
-                    <Zap className="w-5 h-5 mr-2" />
-                    계속 더 풀기
-                  </Button>
+                    {state === "locked" && <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto" />}
+                    {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-500 absolute inset-0 m-auto" />}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Problem Card */}
+            {selectedCell !== null && problem && (
+              <Card className="w-full">
+                <CardContent className="p-6">
+                  <div className="text-center mb-4">
+                    <p className="text-sm text-muted-foreground mb-2">칸 {selectedCell + 1}</p>
+                    <div className="flex items-center justify-center gap-3 mb-6">
+                      <span className="text-3xl font-bold">{problem.operand1}</span>
+                      <span className="text-2xl font-bold text-primary">{problem.operator}</span>
+                      <span className="text-3xl font-bold">{problem.operand2}</span>
+                      <span className="text-2xl font-bold text-muted-foreground">=</span>
+                      <span className="text-3xl font-bold text-primary min-w-[60px]">{userInput || "?"}</span>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {feedback && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className={`text-center p-3 rounded-md mb-4 ${
+                          feedback.isCorrect
+                            ? "bg-green-500/10 border border-green-500/20 text-green-600"
+                            : "bg-red-500/10 border border-red-500/20 text-red-600"
+                        }`}
+                      >
+                        <p className="font-bold">{feedback.message}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {!feedback && (
+                    <div className="space-y-3">
+                      <Input
+                        ref={inputRef}
+                        type="text"
+                        inputMode="numeric"
+                        value={userInput}
+                        onChange={(e) => setUserInput(e.target.value.replace(/[^0-9-]/g, ""))}
+                        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                        placeholder="정답 입력"
+                        className="text-center text-xl font-bold h-12"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedCell(null);
+                            setProblem(null);
+                          }}
+                        >
+                          취소
+                        </Button>
+                        <Button className="flex-1" onClick={handleSubmit} disabled={!userInput}>
+                          확인
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {completedLines >= 5 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center"
+              >
+                <p className="text-2xl font-bold text-green-600 mb-2">🎉 5줄 완성!</p>
+                <p className="text-muted-foreground">동물을 맞춰보세요!</p>
+              </motion.div>
+            )}
+          </>
+        ) : (
+          /* Animal Guessing Phase */
+          <Card className="w-full">
+            <CardContent className="p-6 text-center space-y-4">
+              <Trophy className="w-16 h-16 mx-auto text-yellow-500" />
+              <h2 className="text-2xl font-bold">빙고 완성! 🎉</h2>
+
+              {/* Full animal image */}
+              <div className="w-full aspect-square max-w-sm mx-auto rounded-lg overflow-hidden">
+                <img src={animalImageUrl} alt="동물" className="w-full h-full object-cover" />
+              </div>
+
+              <p className="text-lg font-semibold">이 동물은 무엇일까요?</p>
+
+              {hintText && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md p-3"
+                >
+                  <Lightbulb className="w-5 h-5 text-yellow-600" />
+                  <p className="text-sm font-semibold text-yellow-700">{hintText}</p>
+                </motion.div>
+              )}
+
+              {guessFeedback && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={`p-3 rounded-md ${
+                    guessFeedback.includes("정답")
+                      ? "bg-green-500/10 border border-green-500/20 text-green-600"
+                      : "bg-red-500/10 border border-red-500/20 text-red-600"
+                  }`}
+                >
+                  <p className="font-bold">{guessFeedback}</p>
+                </motion.div>
+              )}
+
+              {!guessFeedback?.includes("정답") ? (
+                <div className="space-y-3">
+                  <Input
+                    type="text"
+                    value={animalGuess}
+                    onChange={(e) => setAnimalGuess(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAnimalGuess()}
+                    placeholder="동물 이름 입력 (예: 사자)"
+                    className="text-center text-lg h-12"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={handleShowHint} disabled={hintLevel >= 3}>
+                      <Lightbulb className="w-4 h-4 mr-2" />
+                      힌트 ({hintLevel}/3)
+                    </Button>
+                    <Button className="flex-1" onClick={handleAnimalGuess} disabled={!animalGuess.trim()}>
+                      정답 확인
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 mt-4">
                   <Button
-                    variant="outline"
-                    className="w-full h-12 text-base font-semibold"
+                    className="w-full"
                     onClick={async () => {
                       if (player.level >= 10) {
                         alert("이미 최대 레벨입니다!");
                         return;
                       }
-                      try {
-                        await apiRequest("PUT", `/api/players/${player.id}/level`, {
-                          level: player.level + 1,
-                        });
-                        queryClient.invalidateQueries({
-                          queryKey: ["/api/players", playerId, "stats"],
-                        });
-                        generateNewProblem();
-                      } catch (error) {
-                        console.error("Failed to increase level:", error);
-                      }
+                      await apiRequest("PUT", `/api/players/${player.id}/level`, {
+                        level: player.level + 1,
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["/api/players", playerId, "stats"] });
+                      startSession();
                     }}
                   >
                     <ChevronUp className="w-5 h-5 mr-2" />
                     레벨 올리기 (Lv.{Math.min(player.level + 1, 10)})
                   </Button>
-                  <div className="flex gap-3">
-                    <Button
-                      variant="ghost"
-                      className="flex-1"
-                      onClick={() => router.push("/")}
-                    >
-                      홈으로
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="flex-1"
-                      onClick={() => router.push(`/dashboard/${player.id}`)}
-                    >
-                      학습 현황 보기
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ) : (
-          <Card className="w-full">
-            <CardContent className="p-6 md:p-8">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${problem.operand1}-${problem.operator}-${problem.operand2}`}
-                  initial={{ opacity: 0, x: 30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -30 }}
-                  transition={{ duration: 0.25 }}
-                  className="text-center"
-                >
-                  <div className="flex items-center justify-center gap-3 md:gap-5 mb-6">
-                    <span className="text-4xl md:text-5xl font-bold">
-                      {problem.operand1}
-                    </span>
-                    <span className={`text-3xl md:text-4xl font-bold ${getOperatorColor(problem.operator)}`}>
-                      {problem.operator}
-                    </span>
-                    <span className="text-4xl md:text-5xl font-bold">
-                      {problem.operand2}
-                    </span>
-                    <span className="text-3xl md:text-4xl font-bold text-muted-foreground">=</span>
-                    <span className="text-4xl md:text-5xl font-bold text-primary min-w-[80px]">
-                      {userInput || "?"}
-                    </span>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {feedback && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className={`text-center p-4 rounded-md mb-4 ${
-                      feedback.isCorrect
-                        ? "bg-chart-4/10 border border-chart-4/20"
-                        : "bg-destructive/10 border border-destructive/20"
-                    }`}
-                  >
-                    <p className={`font-bold text-lg ${
-                      feedback.isCorrect ? "text-chart-4" : "text-destructive"
-                    }`}>
-                      {feedback.message}
-                    </p>
-                    {!feedback.isCorrect && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        정답: <span className="font-bold text-foreground">{feedback.correctAnswer}</span>
-                      </p>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {feedback ? (
-                <Button
-                  size="lg"
-                  className="w-full"
-                  onClick={generateNewProblem}
-                >
-                  다음 문제
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  <Input
-                    ref={inputRef}
-                    type="text"
-                    inputMode="numeric"
-                    value={userInput}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, "");
-                      setUserInput(val);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleSubmit();
-                      }
-                    }}
-                    placeholder="정답 입력"
-                    className="text-center text-2xl font-bold h-14"
-                    autoFocus
-                  />
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    onClick={handleSubmit}
-                    disabled={!userInput}
-                  >
-                    정답 확인
+                  <Button variant="outline" className="w-full" onClick={startSession}>
+                    <Zap className="w-5 h-5 mr-2" />
+                    같은 레벨 더 하기
+                  </Button>
+                  <Button variant="ghost" className="w-full" onClick={() => router.push("/")}>
+                    그만하기
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {sessionTotal > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="w-full"
-          >
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">이번 학습</span>
-                  </div>
-                  <span className="text-sm font-semibold">
-                    {sessionCorrect}/{sessionTotal} ({sessionAccuracy}%)
-                  </span>
-                </div>
-                <Progress value={sessionAccuracy} className="h-2" />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {stats?.todayStats && stats.todayStats.totalAttempted > 0 && (
-          <Card className="w-full">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-chart-3" />
-                  <span className="text-sm text-muted-foreground">
-                    오늘 전체
-                    {player.dailyLimit > 0 && (
-                      <span className="ml-1">
-                        ({stats.todayStats.totalAttempted}/{player.dailyLimit})
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <span className="text-sm font-semibold">
-                  {stats.todayStats.totalCorrect}/{stats.todayStats.totalAttempted} ({stats.todayStats.accuracy}%)
-                </span>
-              </div>
             </CardContent>
           </Card>
         )}

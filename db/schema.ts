@@ -61,6 +61,49 @@ export const reviewAttemptsRelations = relations(reviewAttempts, ({ one }) => ({
   }),
 }));
 
+// Bingo game tables
+export const bingoSessions = pgTable("bingo_sessions", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").notNull().references(() => players.id),
+  level: integer("level").notNull(),
+  animalName: text("animal_name").notNull(),
+  animalImageUrl: text("animal_image_url").notNull(),
+  boardState: text("board_state").notNull().default('["locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked","locked"]'),
+  completedLines: integer("completed_lines").default(0),
+  isCompleted: boolean("is_completed").default(false),
+  guessedCorrectly: boolean("guessed_correctly").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const bingoAttempts = pgTable("bingo_attempts", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => bingoSessions.id),
+  cellIndex: integer("cell_index").notNull(),
+  operand1: integer("operand1").notNull(),
+  operand2: integer("operand2").notNull(),
+  operator: text("operator").notNull(),
+  correctAnswer: integer("correct_answer").notNull(),
+  userAnswer: integer("user_answer").notNull(),
+  isCorrect: boolean("is_correct").notNull(),
+  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+});
+
+export const bingoSessionsRelations = relations(bingoSessions, ({ one, many }) => ({
+  player: one(players, {
+    fields: [bingoSessions.playerId],
+    references: [players.id],
+  }),
+  attempts: many(bingoAttempts),
+}));
+
+export const bingoAttemptsRelations = relations(bingoAttempts, ({ one }) => ({
+  session: one(bingoSessions, {
+    fields: [bingoAttempts.sessionId],
+    references: [bingoSessions.id],
+  }),
+}));
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   level: true,
@@ -129,4 +172,17 @@ export interface LevelStats {
   totalAttempted: number;
   totalCorrect: number;
   accuracy: number;
+}
+
+// Bingo types
+export type BingoSession = typeof bingoSessions.$inferSelect;
+export type InsertBingoSession = typeof bingoSessions.$inferInsert;
+export type BingoAttempt = typeof bingoAttempts.$inferSelect;
+export type InsertBingoAttempt = typeof bingoAttempts.$inferInsert;
+
+export type CellState = "locked" | "unlocked";
+
+export interface Animal {
+  ko: string;
+  en: string;
 }
