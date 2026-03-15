@@ -8,6 +8,17 @@
 
 ### 2. DB 마이그레이션 실행 (필수!)
 
+**방법 1: 자동 마이그레이션 (권장)**
+
+Vercel 배포 완료 후, 아래 URL에 접속하세요:
+```
+https://your-app.vercel.app/api/migrate
+```
+
+응답이 `{"status":"migrated"}` 또는 `{"status":"already_migrated"}`이면 성공입니다.
+
+**방법 2: 수동 마이그레이션**
+
 Neon DB 콘솔에 접속해서 아래 SQL을 실행하세요:
 
 ```sql
