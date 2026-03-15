@@ -268,15 +268,16 @@ export default function BingoGame() {
         {phase === "playing" ? (
           <>
             {/* Bingo Board */}
-            <div 
-              className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg"
-              style={{
-                backgroundImage: animalImageUrl ? `url(${animalImageUrl})` : "none",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                backgroundColor: "#111827",
-              }}
-            >
+            <div className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-900">
+              {/* Background Image */}
+              {animalImageUrl && (
+                <img
+                  src={animalImageUrl}
+                  alt="숨겨진 동물"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+              
               {/* Grid overlay - NO GAP */}
               <div className="absolute inset-0 grid grid-cols-5 grid-rows-5">
                 {boardState.map((state, index) => {
@@ -299,9 +300,6 @@ export default function BingoGame() {
                           <div className="absolute inset-0 bg-gray-900/98 backdrop-blur-xl" />
                           <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto z-10" />
                         </>
-                      )}
-                      {state === "unlocked" && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-green-500/10 to-transparent pointer-events-none" />
                       )}
                       {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-400 absolute top-1 right-1 drop-shadow-lg z-10" />}
                     </motion.button>
