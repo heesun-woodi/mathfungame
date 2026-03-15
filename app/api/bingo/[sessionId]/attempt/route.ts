@@ -10,9 +10,10 @@ import {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  context: { params: Promise<{ sessionId: string }> }
 ) {
   try {
+    const params = await context.params;
     const sessionId = parseInt(params.sessionId);
     const body = await request.json();
     const {
@@ -67,7 +68,7 @@ export async function POST(
     });
 
     // 정답일 경우 보드 상태 업데이트
-    let updatedBoard = jsonToBoard(session.boardState);
+    const updatedBoard = jsonToBoard(session.boardState);
     let completedLines = session.completedLines ?? 0;
     let isCompleted = session.isCompleted ?? false;
 

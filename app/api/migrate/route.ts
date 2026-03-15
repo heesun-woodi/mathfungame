@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 
-export async function GET(request: NextRequest) {
+interface ExistsRow {
+  exists: boolean;
+}
+
+export async function GET() {
   try {
     // Check if bingo_sessions table exists
     const checkResult = await db.execute(sql`
@@ -13,7 +17,7 @@ export async function GET(request: NextRequest) {
       ) as exists
     `);
 
-    const tableExists = (checkResult.rows[0] as any)?.exists;
+    const tableExists = (checkResult.rows[0] as unknown as ExistsRow)?.exists;
 
     if (tableExists) {
       return NextResponse.json({

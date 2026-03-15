@@ -11,3 +11,6 @@ export function getDb() {
   }
   return _db;
 }
+
+// Export db for backward compatibility
+export const db = getDb();

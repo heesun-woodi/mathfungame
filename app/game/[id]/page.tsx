@@ -86,7 +86,8 @@ export default function BingoGame() {
   // Initialize session
   useEffect(() => {
     if (player && !sessionId) {
-      startSession();
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      startSession(); // Intentionally calling in effect for initialization
     }
   }, [player, sessionId, startSession]);
 

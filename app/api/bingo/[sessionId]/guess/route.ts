@@ -5,9 +5,10 @@ import { eq } from "drizzle-orm";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  context: { params: Promise<{ sessionId: string }> }
 ) {
   try {
+    const params = await context.params;
     const sessionId = parseInt(params.sessionId);
     const body = await request.json();
     const { animalGuess } = body;
