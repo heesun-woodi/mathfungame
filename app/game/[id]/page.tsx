@@ -320,7 +320,48 @@ export default function BingoGame() {
                     )}
                   </AnimatePresence>
 
-                  {!feedback && (
+                  {feedback ? (
+                    <div className="space-y-3">
+                      {feedback.isCorrect ? (
+                        <Button
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedCell(null);
+                            setProblem(null);
+                            setUserInput("");
+                            setFeedback(null);
+                          }}
+                        >
+                          다음 칸 선택
+                        </Button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setUserInput("");
+                              setFeedback(null);
+                            }}
+                          >
+                            다시 시도
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setSelectedCell(null);
+                              setProblem(null);
+                              setUserInput("");
+                              setFeedback(null);
+                            }}
+                          >
+                            다른 칸 선택
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                     <div className="space-y-3">
                       <Input
                         ref={inputRef}
