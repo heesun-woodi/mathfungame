@@ -163,8 +163,8 @@ export default function BingoGame() {
     }
   }, [problem, sessionId, selectedCell, userInput]);
 
-  // Submit animal guess
-  const handleAnimalGuess = useCallback(async () => {
+  // Submit animal guess (used in both playing and guessing phases)
+  const handleGuessSubmit = useCallback(async () => {
     if (!sessionId || !animalGuess.trim()) return;
 
     try {
@@ -174,15 +174,26 @@ export default function BingoGame() {
       const data = await response.json();
 
       if (data.isCorrect) {
+        if (phase === "playing") {
+          // Early win! Transition to guessing phase to show result
+          setPhase("guessing");
+          setSelectedCell(null);
+          setProblem(null);
+        }
         setGuessFeedback("정답입니다! 🎉");
         queryClient.invalidateQueries({ queryKey: ["/api/players", playerId, "stats"] });
       } else {
         setGuessFeedback("틀렸어요. 힌트를 확인해보세요!");
+        // Auto-clear feedback after 2s
+        setTimeout(() => setGuessFeedback(""), 2000);
       }
     } catch (error) {
       console.error("Failed to submit guess:", error);
     }
-  }, [sessionId, animalGuess, playerId]);
+  }, [sessionId, animalGuess, playerId, phase]);
+
+  // Alias for backward compatibility in guessing phase
+  const handleAnimalGuess = handleGuessSubmit;
 
   // Show hint
   const handleShowHint = useCallback(async () => {
@@ -298,6 +309,44 @@ export default function BingoGame() {
                 })}
               </div>
             </div>
+
+            {/* Animal Guess Card - Always visible during playing */}
+            <Card className="w-full border-2 border-primary/20">
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">💡 동물 맞추기 (빠른 승리!)</p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={animalGuess}
+                      onChange={(e) => setAnimalGuess(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && animalGuess && handleGuessSubmit()}
+                      placeholder="동물 이름 입력 (예: 사자)"
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleGuessSubmit}
+                      disabled={!animalGuess.trim()}
+                      size="sm"
+                      className="whitespace-nowrap"
+                    >
+                      제출
+                    </Button>
+                  </div>
+                  {guessFeedback && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`text-sm font-medium ${
+                        guessFeedback.includes("정답") ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {guessFeedback}
+                    </motion.p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Problem Card */}
             {selectedCell !== null && problem && (
