@@ -268,40 +268,40 @@ export default function BingoGame() {
         {phase === "playing" ? (
           <>
             {/* Bingo Board */}
-            <div className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-900">
-              {/* Grid overlay */}
-              <div className="absolute inset-0 grid grid-cols-5 grid-rows-5 gap-1 p-1">
+            <div 
+              className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg"
+              style={{
+                backgroundImage: animalImageUrl ? `url(${animalImageUrl})` : "none",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundColor: "#111827",
+              }}
+            >
+              {/* Grid overlay - NO GAP */}
+              <div className="absolute inset-0 grid grid-cols-5 grid-rows-5">
                 {boardState.map((state, index) => {
-                  const row = Math.floor(index / 5);
-                  const col = index % 5;
                   return (
                     <motion.button
                       key={index}
                       onClick={() => handleCellClick(index)}
                       disabled={state === "unlocked" || selectedCell !== null}
                       className={`
-                        relative rounded-md border-2 transition-all overflow-hidden
-                        ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50" : ""}
-                        ${state === "locked" ? "border-gray-600 hover:border-gray-500" : "border-green-400"}
+                        relative border transition-all
+                        ${selectedCell === index ? "border-blue-500 ring-4 ring-blue-500/50 z-20" : ""}
+                        ${state === "locked" ? "border-gray-700/50" : "border-green-400"}
                         disabled:cursor-not-allowed
                       `}
-                      style={
-                        state === "unlocked" && animalImageUrl
-                          ? {
-                              backgroundImage: `url(${animalImageUrl})`,
-                              backgroundSize: "500%",
-                              backgroundPosition: `${col * 25}% ${row * 25}%`,
-                            }
-                          : {}
-                      }
-                      whileHover={state === "locked" && selectedCell === null ? { scale: 1.05 } : {}}
-                      whileTap={state === "locked" && selectedCell === null ? { scale: 0.95 } : {}}
+                      whileHover={state === "locked" && selectedCell === null ? { scale: 1.02 } : {}}
+                      whileTap={state === "locked" && selectedCell === null ? { scale: 0.98 } : {}}
                     >
                       {state === "locked" && (
                         <>
-                          <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-md" />
+                          <div className="absolute inset-0 bg-gray-900/98 backdrop-blur-xl" />
                           <Lock className="w-4 h-4 md:w-6 md:h-6 text-gray-400 absolute inset-0 m-auto z-10" />
                         </>
+                      )}
+                      {state === "unlocked" && (
+                        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-green-500/10 to-transparent pointer-events-none" />
                       )}
                       {state === "unlocked" && <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-green-400 absolute top-1 right-1 drop-shadow-lg z-10" />}
                     </motion.button>
