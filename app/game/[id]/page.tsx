@@ -47,7 +47,6 @@ export default function Game() {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [streak, setStreak] = useState(0);
   const [showLevelChange, setShowLevelChange] = useState<"up" | "down" | null>(null);
-  const [extraProblemsAfterLimit, setExtraProblemsAfterLimit] = useState(0);
 
   const { data: stats, isLoading } = useQuery<PlayerStats>({
     queryKey: ["/api/players", playerId, "stats"],
@@ -102,9 +101,8 @@ export default function Game() {
   // Check daily limit (computed, not stateful)
   const dailyLimitReached = useMemo(() => {
     if (!player || !stats || player.dailyLimit === 0) return false;
-    const todayTotal = stats.todayStats.totalAttempted + extraProblemsAfterLimit;
-    return todayTotal >= player.dailyLimit;
-  }, [player, stats, extraProblemsAfterLimit]);
+    return stats.todayStats.totalAttempted >= player.dailyLimit;
+  }, [player, stats]);
 
   const handleSubmit = useCallback(() => {
     if (!problem || !player || feedback) return;
@@ -123,11 +121,6 @@ export default function Game() {
       setStreak((prev) => prev + 1);
     } else {
       setStreak(0);
-    }
-
-    // Track extra problems for daily limit calculation
-    if (player.dailyLimit > 0) {
-      setExtraProblemsAfterLimit((prev) => prev + 1);
     }
 
     submitMutation.mutate({
