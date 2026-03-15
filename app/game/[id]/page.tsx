@@ -271,22 +271,15 @@ export default function BingoGame() {
             <div className="relative w-full aspect-square max-w-md rounded-lg overflow-hidden shadow-lg bg-gray-900">
               {/* Background Image */}
               {animalImageUrl && (
-                <>
-                  <img
-                    src={animalImageUrl}
-                    alt="숨겨진 동물"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={(e) => {
-                      console.error("Image load failed:", animalImageUrl);
-                      e.currentTarget.style.display = "none";
-                    }}
-                    onLoad={() => console.log("Image loaded:", animalImageUrl)}
-                  />
-                  {/* Debug: Show image URL */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate z-50">
-                    {animalImageUrl}
-                  </div>
-                </>
+                <img
+                  src={animalImageUrl}
+                  alt="숨겨진 동물"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error("Image load failed:", animalImageUrl);
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
               )}
               
               {/* Grid overlay - NO GAP */}

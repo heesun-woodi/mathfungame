@@ -111,12 +111,35 @@ export function getRandomAnimal(): Animal {
 
 /**
  * 동물 이미지 URL 생성
- * Note: Unsplash source API deprecated, using Lorem Picsum with seed
+ * Using curated Unsplash photos with specific IDs for each animal
  */
 export function getAnimalImageUrl(animal: Animal): string {
-  // Use Lorem Picsum with seed for consistent images
-  const seed = animal.en;
-  return `https://picsum.photos/seed/${seed}/800/800`;
+  // Unsplash photo IDs for each animal (curated)
+  const animalPhotos: Record<string, string> = {
+    lion: "KMn4VEeEPR8", // Lion by Glen Carrie
+    tiger: "TIrXot28Znc", // Tiger by Jessica Weiller
+    bear: "yihlaRCCvd4", // Bear by Zdeněk Macháček
+    elephant: "cOJgO4Zzs-w", // Elephant by Geran de Klerk
+    giraffe: "MQUqbmszGGM", // Giraffe by Zdeněk Macháček
+    zebra: "XH2JFgT4Abc", // Zebra by David Clode
+    penguin: "N9Pf2J656aQ", // Penguin by Derek Oyen
+    cat: "NodtnCsLdTE", // Cat by Mikhail Vasilyev
+    dog: "vihfVtRRboQ", // Dog by Joe Caione
+    rabbit: "nKC772R_qog", // Rabbit by Satyabrata sm
+    squirrel: "75715CVEJhI", // Squirrel by Geranimo
+    fox: "xpdmfXJ7qkM", // Fox by Ray Hennessy
+    wolf: "m0oU20Bn20E", // Wolf by Milo Weiler
+    panda: "tPF1KsY1u24", // Panda by Laura Smetsers
+    koala: "tPF1KsY1u24", // Koala (placeholder)
+    kangaroo: "5MtOJLGJB-4", // Kangaroo by David Clode
+    owl: "E-0ON3VGrBc", // Owl by Zdeněk Macháček
+    eagle: "7i5HLSaVLhY", // Eagle by Patrice Bouchard
+    parrot: "98uYQ-KupiE", // Parrot by Timothy Dykes
+    dolphin: "4Bcu-9tOvmw", // Dolphin by DLKR
+  };
+
+  const photoId = animalPhotos[animal.en] || "KMn4VEeEPR8"; // Default: lion
+  return `https://images.unsplash.com/photo-${photoId}?w=800&h=800&fit=crop`;
 }
 
 /**
