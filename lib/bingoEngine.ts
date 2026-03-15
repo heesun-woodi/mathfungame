@@ -110,10 +110,13 @@ export function getRandomAnimal(): Animal {
 }
 
 /**
- * Unsplash 동물 이미지 URL 생성
+ * 동물 이미지 URL 생성
+ * Note: Unsplash source API deprecated, using Lorem Picsum with seed
  */
 export function getAnimalImageUrl(animal: Animal): string {
-  return `https://source.unsplash.com/800x800/?animal,${animal.en}`;
+  // Use Lorem Picsum with seed for consistent images
+  const seed = animal.en;
+  return `https://picsum.photos/seed/${seed}/800/800`;
 }
 
 /**
